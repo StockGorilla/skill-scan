@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { discoverTargets } from "./discover.js";
 import { builtinRules } from "./rules/index.js";
+import { applyLineSuppressions, loadSkillScanIgnoreFiles } from "./suppress.js";
 import type { Finding, ScanResult, Severity } from "./types.js";
 import { SEVERITY_RANK } from "./types.js";
 
@@ -15,13 +16,18 @@ function readText(filePath: string): string | null {
 
 export function scanRoots(roots: string[], ignore: string[] = []): ScanResult {
   const started = Date.now();
-  const targets = discoverTargets(roots, ignore);
+  const fileIgnore = [...ignore, ...loadSkillScanIgnoreFiles(roots)];
+  const targets = discoverTargets(roots, fileIgnore);
   const findings: Finding[] = [];
+  const fileTexts = new Map<string, string>();
   let counter = 0;
 
   for (const target of targets) {
     const text = readText(target.path);
     if (text == null) continue;
+    const resolved = path.resolve(target.path);
+    fileTexts.set(resolved, text);
+    fileTexts.set(target.path, text);
     const lines = text.split(/\r?\n/);
     const ctx = { path: target.path, kind: target.kind, text, lines };
 
@@ -37,7 +43,7 @@ export function scanRoots(roots: string[], ignore: string[] = []): ScanResult {
           ruleId: rule.id,
           severity: rule.severity,
           message: hit.message || rule.title,
-          path: path.resolve(target.path),
+          path: resolved,
           startLine: hit.startLine,
           endLine: hit.endLine,
           snippet: hit.snippet,
@@ -47,7 +53,9 @@ export function scanRoots(roots: string[], ignore: string[] = []): ScanResult {
     }
   }
 
-  findings.sort((a, b) => {
+  const filtered = applyLineSuppressions(findings, fileTexts);
+
+  filtered.sort((a, b) => {
     const sev = SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity];
     if (sev !== 0) return sev;
     return a.path.localeCompare(b.path) || a.startLine - b.startLine;
@@ -58,15 +66,16 @@ export function scanRoots(roots: string[], ignore: string[] = []): ScanResult {
     scannedAt: new Date().toISOString(),
     durationMs: Date.now() - started,
     targets,
-    findings,
+    findings: filtered,
   };
 }
 
 export function maxSeverity(findings: Finding[]): Severity | null {
   if (!findings.length) return null;
-  return findings.reduce((best, f) =>
-    SEVERITY_RANK[f.severity] > SEVERITY_RANK[best] ? f.severity : best
-  , findings[0].severity);
+  return findings.reduce(
+    (best, f) => (SEVERITY_RANK[f.severity] > SEVERITY_RANK[best] ? f.severity : best),
+    findings[0].severity
+  );
 }
 
 export function shouldFail(findings: Finding[], failOn: Severity): boolean {

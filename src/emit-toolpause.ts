@@ -92,7 +92,13 @@ function skillLabel(filePath: string): string {
 function decisionForFinding(f: Finding): GateDecision {
   // Critical always deny; high defaults to require_approval unless clearly over-broad / remote-exec.
   if (f.severity === "critical") return "deny";
-  if (f.ruleId === "mcp-overbroad" || f.ruleId === "remote-exec" || f.ruleId === "credential-exfil") {
+  if (
+    f.ruleId === "mcp-overbroad" ||
+    f.ruleId === "remote-exec" ||
+    f.ruleId === "credential-exfil" ||
+    f.ruleId === "hardcoded-secret" ||
+    f.ruleId === "network-exfil"
+  ) {
     return "deny";
   }
   return "require_approval";

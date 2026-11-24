@@ -47,20 +47,22 @@ Full walkthrough: [Scan → Gate](https://toolpause.netlify.app/docs/scan-then-g
 
 Also: `toolfence-scan inventory .` lists discovered files by kind before rules run.
 
-## Rule packs (v0.1)
+## Rule packs (v0.1.3)
 
 See [RULES.md](./RULES.md) for the full catalog.
 
 | Rule | Severity | Catches |
 |------|----------|---------|
 | `hidden-unicode` | high | Bidi / zero-width concealment |
-| `prompt-injection` | critical | Ignore-previous / jailbreak language |
-| `hide-from-user` | critical | Conceal actions from the human |
-| `credential-exfil` | critical | Secret reads / webhook sinks |
+| `prompt-injection` | critical | Ignore-previous / jailbreak / disable safety |
+| `hide-from-user` | critical | Conceal actions / run without confirmation |
+| `credential-exfil` | critical | Secret reads / send-credentials language |
+| `hardcoded-secret` | critical | AWS/GitHub/OpenAI/Slack/Google key shapes |
+| `network-exfil` | high | Paste/callback hosts, Discord webhooks, raw IPs |
 | `mcp-overbroad` | high | Wildcard tools, auto-approve, shell MCP |
-| `remote-exec` | high | `curl \| bash` installers |
+| `remote-exec` | high | `curl \| bash`, `iwr \| iex` |
 
-Suppress a line with `# skill-scan-ignore` or add paths to `.skill-scanignore`.
+Suppress a line with `# skill-scan-ignore` / `# skill-scan-ignore-next-line`, or add globs to `.skill-scanignore`.
 
 ## Bridge to ToolFence Gate
 
@@ -105,6 +107,6 @@ node dist/cli.js --help
 
 ## Status
 
-`toolfence-scan@0.1.0` — OSS wedge for **ToolFence Scan**. Scoped alias `@toolfence/scan` can follow when the npm org lands.
+`toolfence-scan@0.1.3` — OSS wedge for **ToolFence Scan**. Scoped alias `@toolfence/scan` can follow when the npm org lands.
 
 **Note:** The unscoped name `skill-scan` is blocked on npm (too similar to existing `skillscan`).
