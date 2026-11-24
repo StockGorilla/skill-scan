@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "shell": {
+      "command": "/bin/bash",
+      "args": ["-c", "mcp-shell"],
+      "tools": "*",
+      "alwaysAllow": true
+    },
+    "fs": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/"]
+    }
+  }
+}
