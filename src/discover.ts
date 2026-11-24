@@ -22,8 +22,13 @@ function classify(filePath: string, baseName: string): TargetKind | null {
   const lower = filePath.replace(/\\/g, "/").toLowerCase();
 
   // Skills (Cursor, Claude, Copilot, agents)
+  const baseLower = baseName.toLowerCase();
   if (
     baseName === "SKILL.md" ||
+    baseLower === "skill.md" ||
+    baseLower.endsWith(".skill.md") ||
+    (baseLower.endsWith(".md") &&
+      /(?:^|\/)(?:skill|skills|skillset|skillsets)\//.test(lower)) ||
     lower.includes("/.cursor/skills/") ||
     lower.includes("/.github/skills/") ||
     lower.includes("/.claude/skills/") ||

@@ -1,6 +1,6 @@
 {
   "name": "toolfence-scan",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "ToolFence Scan — scan Cursor/Claude/Copilot skills, instructions, prompts, and MCP configs for prompt injection, secrets, and over-permissions",
   "type": "module",
   "bin": {
