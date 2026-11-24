@@ -1,4 +1,4 @@
-# skill-scan
+# toolfence-scan
 
 **ToolFence Scan** — pre-install security for AI coding agents.
 
@@ -9,14 +9,16 @@ Part of [ToolFence](https://toolpause.netlify.app/#suite):
 > **Scan** what you install → **Gate** what can hurt you → **Radar** on cost and risk.
 
 ```bash
-npx skill-scan .
+npx toolfence-scan .
 ```
+
+(`skill-scan` is also installed as a CLI alias.)
 
 ## 30-second demo
 
 ```bash
 # From this package (fixtures include known-bad skills)
-npx skill-scan ./fixtures --format text --fail-on high
+npx toolfence-scan ./fixtures --format text --fail-on high
 ```
 
 Expect critical/high findings on the planted bad skills (and a non-zero exit).
@@ -24,11 +26,11 @@ Expect critical/high findings on the planted bad skills (and a non-zero exit).
 Against your own repo:
 
 ```bash
-npx skill-scan .
-npx skill-scan . --format sarif --output results.sarif
-npx skill-scan . --format html --output report.html
-npx skill-scan . --fail-on high
-npx skill-scan . --emit-toolpause-rules --output gate-rules.json
+npx toolfence-scan .
+npx toolfence-scan . --format sarif --output results.sarif
+npx toolfence-scan . --format html --output report.html
+npx toolfence-scan . --fail-on high
+npx toolfence-scan . --emit-toolpause-rules --output gate-rules.json
 ```
 
 ## What it scans
@@ -39,7 +41,7 @@ npx skill-scan . --emit-toolpause-rules --output gate-rules.json
 | Rules | `.cursorrules`, `.cursor/rules/**`, `AGENTS.md` |
 | MCP | `.cursor/mcp.json`, `mcp.json`, `claude_desktop_config.json` |
 
-Also: `skill-scan inventory .` lists discovered files by kind before rules run.
+Also: `toolfence-scan inventory .` lists discovered files by kind before rules run.
 
 ## Rule packs (v0.1)
 
@@ -61,17 +63,15 @@ Suppress a line with `# skill-scan-ignore` or add paths to `.skill-scanignore`.
 High/critical findings can emit a **Rules fragment** for [Gate](https://toolpause.fly.dev):
 
 ```bash
-npx skill-scan . --emit-toolpause-rules --output gate-rules.json
+npx toolfence-scan . --emit-toolpause-rules --output gate-rules.json
 ```
 
 Includes suggested `policy.deny_tools`, `policy.tool_overrides`, and `policy.deny_tags`. Merge carefully into Inbox → Rules (don’t blind-overwrite production policy).
 
 ## CI (GitHub)
 
-After publish, smallest check:
-
 ```yaml
-- run: npx skill-scan . --format sarif --output skill-scan.sarif --fail-on high
+- run: npx toolfence-scan . --format sarif --output skill-scan.sarif --fail-on high
 - uses: github/codeql-action/upload-sarif@v3
   with:
     sarif_file: skill-scan.sarif
@@ -99,4 +99,6 @@ node dist/cli.js --help
 
 ## Status
 
-`skill-scan@0.1.0` — OSS wedge for **ToolFence Scan**. Package rename/alias to `@toolfence/scan` comes with the ToolFence package cutover.
+`toolfence-scan@0.1.0` — OSS wedge for **ToolFence Scan**. Scoped alias `@toolfence/scan` can follow when the npm org lands.
+
+**Note:** The unscoped name `skill-scan` is blocked on npm (too similar to existing `skillscan`).

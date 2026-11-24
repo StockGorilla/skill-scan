@@ -1,10 +1,11 @@
 {
-  "name": "skill-scan",
+  "name": "toolfence-scan",
   "version": "0.1.0",
-  "description": "Scan agent skills, MCP configs, and .cursorrules for prompt injection, secrets, and over-permissions before you install them",
+  "description": "ToolFence Scan — scan agent skills, MCP configs, and .cursorrules for prompt injection, secrets, and over-permissions before you install them",
   "type": "module",
   "bin": {
-    "skill-scan": "./dist/cli.js"
+    "toolfence-scan": "dist/cli.js",
+    "skill-scan": "dist/cli.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
