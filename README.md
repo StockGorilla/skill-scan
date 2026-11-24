@@ -30,8 +30,10 @@ npx toolfence-scan .
 npx toolfence-scan . --format sarif --output results.sarif
 npx toolfence-scan . --format html --output report.html
 npx toolfence-scan . --fail-on high
-npx toolfence-scan . --emit-toolpause-rules --output gate-rules.json
+npx toolfence-scan . --emit-gate-rules --output gate-rules.json
 ```
+
+Full walkthrough: [Scan → Gate](https://toolpause.netlify.app/docs/scan-then-gate).
 
 ## What it scans
 
@@ -63,10 +65,12 @@ Suppress a line with `# skill-scan-ignore` or add paths to `.skill-scanignore`.
 High/critical findings can emit a **Rules fragment** for [Gate](https://toolpause.fly.dev):
 
 ```bash
-npx toolfence-scan . --emit-toolpause-rules --output gate-rules.json
+npx toolfence-scan . --emit-gate-rules --output gate-rules.json
 ```
 
-Includes suggested `policy.deny_tools`, `policy.tool_overrides`, and `policy.deny_tags`. Merge carefully into Inbox → Rules (don’t blind-overwrite production policy).
+Includes `policy.*`, ready-to-paste `paste.deny_tools` / `paste.tool_overrides_json`, and `how_to_apply` steps (also printed to stderr). Merge carefully into Inbox → Rules — don’t blind-overwrite production policy.
+
+Guide: [Scan → Gate](https://toolpause.netlify.app/docs/scan-then-gate).
 
 ## CI (GitHub)
 

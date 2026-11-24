@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
-import { emitToolPauseRules, formatToolPauseEmit } from "./emit-toolpause.js";
+import {
+  emitToolPauseRules,
+  formatEmitHints,
+  formatToolPauseEmit,
+} from "./emit-toolpause.js";
 import { formatHtml } from "./format/html.js";
 import { formatJson } from "./format/json.js";
 import { formatSarif } from "./format/sarif.js";
@@ -11,18 +15,19 @@ import type { Severity } from "./types.js";
 import { SEVERITY_RANK } from "./types.js";
 
 function printHelp(): void {
-  process.stdout.write(`skill-scan — pre-install security for agent skills & MCP
+  process.stdout.write(`toolfence-scan — ToolFence Scan (pre-install security for agent skills & MCP)
 
 Usage:
-  skill-scan [path...] [options]
+  toolfence-scan [path...] [options]
+  skill-scan [path...] [options]          # CLI alias
 
 Options:
   --format <text|json|sarif|html>   Output format (default: text)
   --fail-on <critical|high|medium|low|info>   Exit 1 if findings meet severity (default: high)
   --output <file>                   Write report to file
-  --quiet                           Suppress summary on stderr when writing files
+  --quiet                           Suppress summary / emit hints on stderr
   --inventory                       List discovered files only
-  --emit-toolpause-rules            Emit ToolPause Rules JSON fragment (stdout or --output)
+  --emit-gate-rules                 Emit ToolFence Gate Rules JSON (alias: --emit-toolpause-rules)
   --ignore <pattern>                Skip paths matching pattern (repeatable)
   -h, --help                        Show help
 
@@ -32,10 +37,10 @@ Exit codes:
   2  scanner error
 
 Examples:
-  npx skill-scan .
-  npx skill-scan ./skills --format sarif --output results.sarif
-  npx skill-scan . --fail-on critical
-  npx skill-scan . --emit-toolpause-rules --output toolpause-rules.json
+  npx toolfence-scan .
+  npx toolfence-scan ./skills --format sarif --output results.sarif
+  npx toolfence-scan . --format html --output report.html
+  npx toolfence-scan . --emit-gate-rules --output gate-rules.json
 `);
 }
 
@@ -76,7 +81,7 @@ function parseArgs(argv: string[]): CliArgs {
       inventory = true;
       continue;
     }
-    if (a === "--emit-toolpause-rules") {
+    if (a === "--emit-toolpause-rules" || a === "--emit-gate-rules") {
       emitToolpause = true;
       continue;
     }
@@ -143,7 +148,8 @@ function main(): void {
 
     if (args.emitToolpause) {
       const emit = emitToolPauseRules(result, args.failOn);
-      writeOut(formatToolPauseEmit(emit), args.output, args.quiet, "toolpause-rules");
+      writeOut(formatToolPauseEmit(emit), args.output, args.quiet, "gate-rules");
+      if (!args.quiet) process.stderr.write(formatEmitHints(emit));
       process.exit(shouldFail(result.findings, args.failOn) ? 1 : 0);
     }
 
@@ -165,7 +171,9 @@ function main(): void {
     writeOut(body, args.output, args.quiet, args.format);
     process.exit(shouldFail(result.findings, args.failOn) ? 1 : 0);
   } catch (err) {
-    process.stderr.write(`skill-scan error: ${err instanceof Error ? err.message : String(err)}\n`);
+    process.stderr.write(
+      `toolfence-scan error: ${err instanceof Error ? err.message : String(err)}\n`
+    );
     process.exit(2);
   }
 }

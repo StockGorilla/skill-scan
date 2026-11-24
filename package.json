@@ -1,6 +1,6 @@
 {
   "name": "toolfence-scan",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "ToolFence Scan — scan agent skills, MCP configs, and .cursorrules for prompt injection, secrets, and over-permissions before you install them",
   "type": "module",
   "bin": {

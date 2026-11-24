@@ -1,18 +1,36 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { ScanResult, ScanTarget } from "./types.js";
+import type { Finding, ScanResult, ScanTarget, Severity } from "./types.js";
 import { SEVERITY_RANK } from "./types.js";
 
+const GATE_URL = "https://toolpause.fly.dev";
+const DOCS_URL = "https://toolpause.netlify.app/docs/scan-then-gate";
+const SCAN_URL = "https://toolpause.netlify.app/scan";
+
+export type GateDecision = "deny" | "require_approval";
+
 export interface ToolPauseRulesEmit {
-  source: "skill-scan";
+  source: "toolfence-scan";
   generated_at: string;
   summary: string;
-  /** Paste-friendly PolicySnapshot fragment for ToolPause Rules. */
+  /** Paste-friendly fragment for ToolFence Gate → Rules. */
   policy: {
     deny_tools: string[];
     deny_tags: string[];
-    tool_overrides: Record<string, "deny" | "require_approval">;
+    tool_overrides: Record<string, GateDecision>;
     notes: string[];
+  };
+  /** Ready-to-paste strings for the Gate Inbox Rules form. */
+  paste: {
+    deny_tools: string;
+    deny_tags: string;
+    tool_overrides_json: string;
+  };
+  how_to_apply: string[];
+  links: {
+    gate: string;
+    docs: string;
+    scan: string;
   };
   findings_considered: number;
 }
@@ -21,7 +39,6 @@ function tryParseJson(text: string): unknown {
   try {
     return JSON.parse(text);
   } catch {
-    // JSONC-ish: strip // comments lightly
     const stripped = text.replace(/^\s*\/\/.*$/gm, "");
     try {
       return JSON.parse(stripped);
@@ -72,20 +89,37 @@ function skillLabel(filePath: string): string {
   return `skill:${file}`;
 }
 
+function decisionForFinding(f: Finding): GateDecision {
+  // Critical always deny; high defaults to require_approval unless clearly over-broad / remote-exec.
+  if (f.severity === "critical") return "deny";
+  if (f.ruleId === "mcp-overbroad" || f.ruleId === "remote-exec" || f.ruleId === "credential-exfil") {
+    return "deny";
+  }
+  return "require_approval";
+}
+
+function mergeDecision(
+  current: GateDecision | undefined,
+  next: GateDecision
+): GateDecision {
+  if (current === "deny" || next === "deny") return "deny";
+  return "require_approval";
+}
+
 /**
- * Build a ToolPause Rules fragment from scan findings.
- * High/critical findings on MCP configs → deny those servers/tools.
- * Skill findings → deny_tags + notes (skills aren't tool names).
+ * Build a ToolFence Gate Rules fragment from scan findings.
+ * MCP configs → deny / require_approval on server + tool names.
+ * Skills → deny_tags + notes (skills aren't runtime tool names).
  */
 export function emitToolPauseRules(
   result: ScanResult,
-  minSeverity: keyof typeof SEVERITY_RANK = "high"
+  minSeverity: Severity = "high"
 ): ToolPauseRulesEmit {
   const threshold = SEVERITY_RANK[minSeverity];
   const considered = result.findings.filter((f) => SEVERITY_RANK[f.severity] >= threshold);
 
   const denyTools = new Set<string>();
-  const toolOverrides: Record<string, "deny" | "require_approval"> = {};
+  const toolOverrides: Record<string, GateDecision> = {};
   const notes: string[] = [];
   const denyTags = new Set<string>(["skill-scan-blocked"]);
 
@@ -94,40 +128,62 @@ export function emitToolPauseRules(
   for (const f of considered) {
     const target = targetsByPath.get(path.resolve(f.path));
     if (!target) continue;
+    const decision = decisionForFinding(f);
 
     if (target.kind === "mcp_config") {
-      for (const name of collectMcpNames(target)) {
-        denyTools.add(name);
-        toolOverrides[name] = "deny";
+      const names = collectMcpNames(target);
+      for (const name of names) {
+        toolOverrides[name] = mergeDecision(toolOverrides[name], decision);
+        if (toolOverrides[name] === "deny") denyTools.add(name);
       }
       notes.push(
-        `MCP ${path.basename(f.path)}:${f.startLine} [${f.ruleId}] → deny servers/tools in that config`
+        `MCP ${path.basename(f.path)}:${f.startLine} [${f.ruleId}/${f.severity}] → ${decision} (${names.join(", ") || "config"})`
       );
     } else {
       const label = skillLabel(f.path);
       notes.push(`${label} [${f.ruleId}/${f.severity}] ${f.message}`);
-      // Skills aren't runtime tools — suggest a tag operators can attach + require_approval default
       denyTags.add("untrusted-skill");
+      if (f.severity === "critical") denyTags.add("skill-scan-critical");
     }
   }
 
-  // De-dupe notes
   const uniqNotes = [...new Set(notes)].slice(0, 40);
+  const denyToolsSorted = [...denyTools].sort();
+  const denyTagsSorted = [...denyTags].sort();
+  const overridesSorted = Object.fromEntries(
+    Object.entries(toolOverrides).sort(([a], [b]) => a.localeCompare(b))
+  );
 
   return {
-    source: "skill-scan",
+    source: "toolfence-scan",
     generated_at: new Date().toISOString(),
     summary:
       considered.length === 0
-        ? "No findings at threshold — no ToolPause denies suggested."
-        : `Suggested denies from ${considered.length} finding(s). Paste policy into ToolPause Rules (merge carefully).`,
+        ? "No findings at threshold — no Gate denies suggested."
+        : `Suggested Gate policy from ${considered.length} finding(s). Merge into Rules — do not blind-overwrite production.`,
     policy: {
-      deny_tools: [...denyTools].sort(),
-      deny_tags: [...denyTags].sort(),
-      tool_overrides: Object.fromEntries(
-        Object.entries(toolOverrides).sort(([a], [b]) => a.localeCompare(b))
-      ),
+      deny_tools: denyToolsSorted,
+      deny_tags: denyTagsSorted,
+      tool_overrides: overridesSorted,
       notes: uniqNotes,
+    },
+    paste: {
+      deny_tools: denyToolsSorted.join(", "),
+      deny_tags: denyTagsSorted.join(", "),
+      tool_overrides_json: JSON.stringify(overridesSorted, null, 2),
+    },
+    how_to_apply: [
+      `Open Gate → Rules: ${GATE_URL}/`,
+      "Merge paste.deny_tools into “Never allow these tools” (comma-separated).",
+      "Merge paste.deny_tags into deny tags if you use tags on agents/skills.",
+      "Merge paste.tool_overrides_json into per-tool overrides (JSON object).",
+      "Save policy, then re-run a risky tool to confirm Inbox / deny behavior.",
+      `Full walkthrough: ${DOCS_URL}`,
+    ],
+    links: {
+      gate: `${GATE_URL}/`,
+      docs: DOCS_URL,
+      scan: SCAN_URL,
     },
     findings_considered: considered.length,
   };
@@ -135,4 +191,15 @@ export function emitToolPauseRules(
 
 export function formatToolPauseEmit(emit: ToolPauseRulesEmit): string {
   return JSON.stringify(emit, null, 2) + "\n";
+}
+
+/** Human next-steps for stderr after emit. */
+export function formatEmitHints(emit: ToolPauseRulesEmit): string {
+  const lines = [
+    "",
+    "Next — apply in ToolFence Gate:",
+    ...emit.how_to_apply.map((s, i) => `  ${i + 1}. ${s}`),
+    "",
+  ];
+  return lines.join("\n");
 }
