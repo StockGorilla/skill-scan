@@ -5,6 +5,9 @@ export type TargetKind =
   | "cursor_rules"
   | "agents_md"
   | "mcp_config"
+  | "copilot_instructions"
+  | "copilot_agent"
+  | "prompt"
   | "other";
 
 export interface ScanTarget {

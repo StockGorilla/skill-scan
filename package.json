@@ -1,7 +1,7 @@
 {
   "name": "toolfence-scan",
-  "version": "0.1.1",
-  "description": "ToolFence Scan — scan agent skills, MCP configs, and .cursorrules for prompt injection, secrets, and over-permissions before you install them",
+  "version": "0.1.2",
+  "description": "ToolFence Scan — scan Cursor/Claude/Copilot skills, instructions, prompts, and MCP configs for prompt injection, secrets, and over-permissions",
   "type": "module",
   "bin": {
     "toolfence-scan": "dist/cli.js",
@@ -40,7 +40,9 @@
     "security",
     "prompt-injection",
     "sarif",
-    "agent-skills"
+    "agent-skills",
+    "github-copilot",
+    "copilot"
   ],
   "homepage": "https://toolpause.netlify.app/scan",
   "bugs": {

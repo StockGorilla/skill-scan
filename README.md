@@ -2,7 +2,7 @@
 
 **ToolFence Scan** — pre-install security for AI coding agents.
 
-Scan **skills**, **MCP configs**, and **Cursor rules** for prompt injection, hidden Unicode, credential risks, and over-broad permissions **before** you trust them.
+Scan **Cursor / Claude / GitHub Copilot** skills, instructions, prompts, and **MCP configs** for prompt injection, hidden Unicode, credential risks, and over-broad permissions **before** you trust them.
 
 Part of [ToolFence](https://toolpause.netlify.app/#suite):
 
@@ -39,9 +39,11 @@ Full walkthrough: [Scan → Gate](https://toolpause.netlify.app/docs/scan-then-g
 
 | Kind | Examples |
 |------|----------|
-| Skills | `SKILL.md`, `.cursor/skills/**` |
-| Rules | `.cursorrules`, `.cursor/rules/**`, `AGENTS.md` |
-| MCP | `.cursor/mcp.json`, `mcp.json`, `claude_desktop_config.json` |
+| Skills | `SKILL.md`, `.cursor/skills/**`, `.github/skills/**`, `.claude/skills/**` |
+| Cursor rules | `.cursorrules`, `.cursor/rules/**` |
+| Agents | `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` |
+| **GitHub Copilot** | `.github/copilot-instructions.md`, `.github/instructions/*.instructions.md`, `.github/prompts/*.prompt.md`, `.github/agents/*.md` |
+| MCP | `.cursor/mcp.json`, `.vscode/mcp.json`, `mcp.json`, `claude_desktop_config.json` |
 
 Also: `toolfence-scan inventory .` lists discovered files by kind before rules run.
 

@@ -12,3 +12,5 @@
 Rules are pattern-based (regex / lightweight scanners). Custom packs: `--rules-dir` when available; otherwise open a PR with a new rule + fixture (see [CONTRIBUTING.md](./CONTRIBUTING.md)).
 
 **Exit codes:** `0` clean (or below `--fail-on`) · `1` findings at/above threshold · `2` scanner error.
+
+**Targets include** Cursor skills/rules, Claude skills, GitHub Copilot instructions/prompts/agents, and MCP configs.
