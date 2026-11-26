@@ -1,0 +1,8 @@
+- id: toolfence-scan
+  name: toolfence-scan
+  description: Scan agent skills, Copilot instructions, and MCP configs for prompt injection, secrets, and over-permissions
+  entry: toolfence-scan
+  language: node
+  pass_filenames: false
+  always_run: true
+  args: ["."]

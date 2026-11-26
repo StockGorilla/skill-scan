@@ -2,7 +2,7 @@
 
 **ToolFence Scan** — pre-install security for AI coding agents.
 
-Scan **Cursor / Claude / GitHub Copilot** skills, instructions, prompts, and **MCP configs** for prompt injection, hidden Unicode, credential risks, and over-broad permissions **before** you trust them.
+Scan **Cursor / Claude / Copilot / Windsurf / VS Code** skills, instructions, prompts, bundled scripts, and **MCP configs** for prompt injection, secrets, shadowing, and over-broad permissions **before** you trust them.
 
 Part of [ToolFence](https://toolpause.netlify.app/#suite):
 
@@ -14,16 +14,15 @@ npx toolfence-scan .
 
 (`skill-scan` is also installed as a CLI alias.)
 
+**What we check vs don’t:** [WHAT_WE_CHECK.md](./WHAT_WE_CHECK.md)
+
 ## 30-second demo
 
 ```bash
-# From this package (fixtures include known-bad skills)
 npx toolfence-scan ./fixtures --format text --fail-on high
 ```
 
-Expect critical/high findings on the planted bad skills (and a non-zero exit).
-
-Against your own repo:
+Expect critical/high findings on planted bad fixtures (non-zero exit). Clean fixtures under `fixtures/clean-skill` and `fixtures/benign-docs` stay quiet.
 
 ```bash
 npx toolfence-scan .
@@ -31,61 +30,71 @@ npx toolfence-scan . --format sarif --output results.sarif
 npx toolfence-scan . --format html --output report.html
 npx toolfence-scan . --fail-on high
 npx toolfence-scan . --emit-gate-rules --output gate-rules.json
+npx toolfence-scan . --baseline .toolfence-baseline.json
+npx toolfence-scan . --fix   # remediation checklist
 ```
-
-Full walkthrough: [Scan → Gate](https://toolpause.netlify.app/docs/scan-then-gate).
 
 ## What it scans
 
 | Kind | Examples |
 |------|----------|
-| Skills | `SKILL.md`, `.cursor/skills/**`, `.github/skills/**`, `.claude/skills/**` |
-| Cursor rules | `.cursorrules`, `.cursor/rules/**` |
-| Agents | `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` |
-| **GitHub Copilot** | `.github/copilot-instructions.md`, `.github/instructions/*.instructions.md`, `.github/prompts/*.prompt.md`, `.github/agents/*.md` |
-| MCP | `.cursor/mcp.json`, `.vscode/mcp.json`, `mcp.json`, `claude_desktop_config.json` |
+| Skills | `SKILL.md`, `.cursor/skills/**`, `.claude/skills/**`, `.windsurf/skills/**` |
+| Cursor / IDE rules | `.cursorrules`, `.cursor/rules/**`, Continue/Windsurf rules |
+| Agents | `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `CODEX.md` |
+| **GitHub Copilot** | `.github/copilot-instructions.md`, prompts, agents |
+| MCP | `.cursor/mcp.json`, `.vscode/mcp.json`, Claude Desktop, content-detected `mcpServers` |
+| Scripts | `.sh` / `.py` / `.js` next to skills |
+| Globals | `--include-global` → `~/.cursor`, `~/.claude`, … |
 
-Also: `toolfence-scan inventory .` lists discovered files by kind before rules run.
+`toolfence-scan --inventory .` lists discovered files by kind.
 
-## Rule packs (v0.1.3)
+## Rules (v0.2.0)
 
-See [RULES.md](./RULES.md) for the full catalog.
+See [RULES.md](./RULES.md). Highlights: prompt injection, hidden Unicode, secrets, MCP overbroad (string **or** array `command`), embedded script danger, static exfil chains, tool shadowing, optional `--drift` rug-pull hashes.
 
-| Rule | Severity | Catches |
-|------|----------|---------|
-| `hidden-unicode` | high | Bidi / zero-width concealment |
-| `prompt-injection` | critical | Ignore-previous / jailbreak / disable safety |
-| `hide-from-user` | critical | Conceal actions / run without confirmation |
-| `credential-exfil` | critical | Secret reads / send-credentials language |
-| `hardcoded-secret` | critical | AWS/GitHub/OpenAI/Slack/Google key shapes |
-| `network-exfil` | high | Paste/callback hosts, Discord webhooks, raw IPs |
-| `mcp-overbroad` | high | Wildcard tools, auto-approve, shell MCP |
-| `remote-exec` | high | `curl \| bash`, `iwr \| iex` |
+Suppress with `# toolfence-scan-ignore` / `# skill-scan-ignore` (optional `:rule-id`), `.toolfence-scanignore`, or `--baseline`.
 
-Suppress a line with `# skill-scan-ignore` / `# skill-scan-ignore-next-line`, or add globs to `.skill-scanignore`.
+Config file (optional): `.toolfence-scan.yml`
+
+```yaml
+failOn: high
+ignore:
+  - "**/vendor/**"
+disableRules:
+  - tool-shadowing
+rulesDir: ./my-rules
+```
+
+Custom packs: `--rules-dir ./my-rules` (YAML/JSON regex rules).
+
+## GitHub Action
+
+```yaml
+- uses: StockGorilla/skill-scan@v0.2.0
+  with:
+    path: .
+    fail-on: high
+```
+
+Uploads SARIF to GitHub code scanning when permissions allow (`security-events: write`).
+
+## pre-commit
+
+```yaml
+# .pre-commit-config.yaml
+- repo: https://github.com/StockGorilla/skill-scan
+  rev: v0.2.0
+  hooks:
+    - id: toolfence-scan
+```
 
 ## Bridge to ToolFence Gate
-
-High/critical findings can emit a **Rules fragment** for [Gate](https://toolpause.fly.dev):
 
 ```bash
 npx toolfence-scan . --emit-gate-rules --output gate-rules.json
 ```
 
-Includes `policy.*`, ready-to-paste `paste.deny_tools` / `paste.tool_overrides_json`, and `how_to_apply` steps (also printed to stderr). Merge carefully into Inbox → Rules — don’t blind-overwrite production policy.
-
 Guide: [Scan → Gate](https://toolpause.netlify.app/docs/scan-then-gate).
-
-## CI (GitHub)
-
-```yaml
-- run: npx toolfence-scan . --format sarif --output skill-scan.sarif --fail-on high
-- uses: github/codeql-action/upload-sarif@v3
-  with:
-    sarif_file: skill-scan.sarif
-```
-
-This monorepo also runs `.github/workflows/skill-scan.yml` against the package build.
 
 ## Develop locally
 
@@ -93,20 +102,10 @@ This monorepo also runs `.github/workflows/skill-scan.yml` against the package b
 git clone https://github.com/StockGorilla/skill-scan.git
 cd skill-scan
 npm install
-npm test          # build + fixture self-test (expects findings)
+npm test
 node dist/cli.js --help
 ```
 
-(Also vendored in the ToolFence monorepo under `packages/skill-scan`.)
+## License
 
-## Docs
-
-- [RULES.md](./RULES.md) — rule catalog  
-- [CONTRIBUTING.md](./CONTRIBUTING.md) — add a rule + fixture  
-- [SECURITY.md](./SECURITY.md) — false positives / missed malware  
-
-## Status
-
-`toolfence-scan@0.1.3` — OSS wedge for **ToolFence Scan**. Scoped alias `@toolfence/scan` can follow when the npm org lands.
-
-**Note:** The unscoped name `skill-scan` is blocked on npm (too similar to existing `skillscan`).
+MIT

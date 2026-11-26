@@ -1,7 +1,7 @@
 {
   "name": "toolfence-scan",
-  "version": "0.1.5",
-  "description": "ToolFence Scan — scan Cursor/Claude/Copilot skills, instructions, prompts, and MCP configs for prompt injection, secrets, and over-permissions",
+  "version": "0.2.0",
+  "description": "ToolFence Scan — scan Cursor/Claude/Copilot/Windsurf skills, instructions, prompts, scripts, and MCP configs for prompt injection, secrets, shadowing, and over-permissions",
   "type": "module",
   "bin": {
     "toolfence-scan": "dist/cli.js",
@@ -23,9 +23,12 @@
   },
   "files": [
     "dist",
+    "action.yml",
+    ".pre-commit-hooks.yaml",
     "README.md",
     "LICENSE",
     "RULES.md",
+    "WHAT_WE_CHECK.md",
     "SECURITY.md"
   ],
   "engines": {
@@ -42,7 +45,8 @@
     "sarif",
     "agent-skills",
     "github-copilot",
-    "copilot"
+    "copilot",
+    "pre-commit"
   ],
   "homepage": "https://toolpause.netlify.app/scan",
   "bugs": {

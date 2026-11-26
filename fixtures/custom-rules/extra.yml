@@ -1,0 +1,8 @@
+- id: custom-ban-todo
+  title: Ban TODO in skills
+  severity: low
+  description: Example custom rule pack entry
+  remediation: Remove TODO markers from published skills.
+  pattern: \bTODO\b
+  message: TODO marker in skill text
+  kinds: [skill]

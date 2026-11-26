@@ -21,7 +21,9 @@ export function formatHtml(result: ScanResult): string {
         <td><span class="pill">${esc(f.severity)}</span></td>
         <td><code>${esc(f.ruleId)}</code></td>
         <td>${esc(f.path)}:${f.startLine}</td>
-        <td>${esc(f.message)}${f.snippet ? `<div class="snip">${esc(f.snippet)}</div>` : ""}</td>
+        <td>${esc(f.message)}${f.snippet ? `<div class="snip">${esc(f.snippet)}</div>` : ""}${
+          f.remediation ? `<div class="fix"><strong>Fix:</strong> ${esc(f.remediation)}</div>` : ""
+        }</td>
       </tr>`
     )
     .join("");
@@ -47,6 +49,7 @@ export function formatHtml(result: ScanResult): string {
     .sev-critical .pill, .sev-high .pill { background:#fdecea; color:var(--deny); }
     .sev-medium .pill { background:#fff4d6; color:#9a6700; }
     .snip { margin-top:0.35rem; font-family: ui-monospace, monospace; font-size:0.78rem; color:var(--muted); }
+    .fix { margin-top:0.4rem; font-size:0.82rem; color:var(--navy); }
     code { font-family: ui-monospace, monospace; font-size:0.82rem; }
     .cta {
       margin: 1.75rem 0 0;

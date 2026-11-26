@@ -1,0 +1,72 @@
+name: toolfence-scan
+description: Scan agent skills, Copilot instructions, and MCP configs; upload SARIF to GitHub code scanning.
+author: ToolFence
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  path:
+    description: Path(s) to scan (space-separated)
+    required: false
+    default: "."
+  fail-on:
+    description: Fail job if findings meet this severity (critical|high|medium|low|info)
+    required: false
+    default: high
+  baseline:
+    description: Optional baseline JSON path (only new findings fail)
+    required: false
+    default: ""
+  upload-sarif:
+    description: Upload results via github/codeql-action/upload-sarif
+    required: false
+    default: "true"
+  version:
+    description: toolfence-scan npm version or dist-tag
+    required: false
+    default: "0.2.0"
+
+outputs:
+  sarif-file:
+    description: Path to the generated SARIF file
+    value: toolfence-scan.sarif
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+
+    - name: Run toolfence-scan
+      id: scan
+      shell: bash
+      continue-on-error: true
+      run: |
+        set -euo pipefail
+        ARGS=(${{ inputs.path }} --format sarif --output toolfence-scan.sarif --fail-on "${{ inputs.fail-on }}")
+        if [ -n "${{ inputs.baseline }}" ]; then
+          ARGS+=(--baseline "${{ inputs.baseline }}")
+        fi
+        npx --yes "toolfence-scan@${{ inputs.version }}" "${ARGS[@]}"
+
+    - name: Ensure SARIF exists
+      shell: bash
+      run: |
+        if [ ! -f toolfence-scan.sarif ]; then
+          printf '%s\n' '{"$schema":"https://json.schemastore.org/sarif-2.1.0.json","version":"2.1.0","runs":[]}' > toolfence-scan.sarif
+        fi
+
+    - name: Upload SARIF
+      if: inputs.upload-sarif == 'true'
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: toolfence-scan.sarif
+        category: toolfence-scan
+
+    - name: Fail on findings
+      if: steps.scan.outcome == 'failure'
+      shell: bash
+      run: exit 1

@@ -1,0 +1,11 @@
+# Copy to .toolfence-scan.yml in your repo root
+failOn: high
+ignore:
+  - "**/vendor/**"
+  - "**/node_modules/**"
+# disableRules:
+#   - tool-shadowing
+# rulesDir: ./security/toolfence-rules
+# baseline: .toolfence-baseline.json
+# includeGlobal: false
+# respectGitignore: true

@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "unsafe-shell": {
+      "command": "/bin/bash",
+      "args": ["-c", "echo hi"],
+      "tools": "*",
+      "alwaysAllow": true
+    }
+  }
+}

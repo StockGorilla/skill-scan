@@ -1,5 +1,7 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { loadGitignorePatterns, matchesGitignore } from "./gitignore.js";
 import type { ScanTarget, TargetKind } from "./types.js";
 
 const IGNORE_DIRS = new Set([
@@ -12,17 +14,34 @@ const IGNORE_DIRS = new Set([
   "__pycache__",
   ".venv",
   "venv",
-  "marketing",
 ]);
 
-/** Dotdirs we deliberately walk (agent / IDE instruction roots). */
-const ALLOWED_DOTDIRS = new Set([".cursor", ".github", ".claude", ".agents"]);
+const ALLOWED_DOTDIRS = new Set([
+  ".cursor",
+  ".github",
+  ".claude",
+  ".agents",
+  ".windsurf",
+  ".continue",
+  ".vscode",
+  ".codex",
+  ".gemini",
+  ".cline",
+]);
+
+const SCRIPT_EXTS = new Set([".sh", ".bash", ".zsh", ".ps1", ".py", ".js", ".mjs", ".cjs", ".ts"]);
+
+export interface DiscoverOptions {
+  ignore?: string[];
+  includeGlobal?: boolean;
+  respectGitignore?: boolean;
+}
 
 function classify(filePath: string, baseName: string): TargetKind | null {
   const lower = filePath.replace(/\\/g, "/").toLowerCase();
-
-  // Skills (Cursor, Claude, Copilot, agents)
   const baseLower = baseName.toLowerCase();
+  const ext = path.extname(baseName).toLowerCase();
+
   if (
     baseName === "SKILL.md" ||
     baseLower === "skill.md" ||
@@ -32,12 +51,12 @@ function classify(filePath: string, baseName: string): TargetKind | null {
     lower.includes("/.cursor/skills/") ||
     lower.includes("/.github/skills/") ||
     lower.includes("/.claude/skills/") ||
-    lower.includes("/.agents/skills/")
+    lower.includes("/.agents/skills/") ||
+    lower.includes("/.windsurf/skills/")
   ) {
     return "skill";
   }
 
-  // GitHub Copilot custom instructions + path-specific
   if (
     baseName === "copilot-instructions.md" ||
     lower.endsWith(".instructions.md") ||
@@ -46,55 +65,78 @@ function classify(filePath: string, baseName: string): TargetKind | null {
     return "copilot_instructions";
   }
 
-  // Copilot / VS Code prompt files
   if (lower.endsWith(".prompt.md") || lower.includes("/.github/prompts/")) {
     return "prompt";
   }
 
-  // Copilot custom agents
   if (lower.includes("/.github/agents/") && baseName.endsWith(".md")) {
     return "copilot_agent";
   }
 
-  // Cursor rules
   if (
     baseName === ".cursorrules" ||
     lower.includes("/.cursor/rules/") ||
-    (baseName.endsWith(".mdc") && lower.includes("/.cursor/"))
+    (baseName.endsWith(".mdc") && lower.includes("/.cursor/")) ||
+    lower.includes("/.windsurf/rules/") ||
+    lower.includes("/.continue/rules/") ||
+    lower.includes("/.cline/rules/")
   ) {
     return "cursor_rules";
   }
 
-  // Cross-agent instruction files
   if (
     baseName === "AGENTS.md" ||
     baseName === "AGENT.md" ||
     baseName === "CLAUDE.md" ||
-    baseName === "GEMINI.md"
+    baseName === "GEMINI.md" ||
+    baseName === "CODEX.md"
   ) {
     return "agents_md";
   }
 
-  // MCP configs (Cursor, VS Code, Claude Desktop, Copilot-adjacent)
   if (
     baseName === "mcp.json" ||
     baseName === "claude_desktop_config.json" ||
     lower.endsWith("/.cursor/mcp.json") ||
     lower.endsWith("/.vscode/mcp.json") ||
     lower.endsWith("/.github/mcp.json") ||
-    (baseName === "settings.json" && lower.includes("mcp"))
+    lower.endsWith("/.windsurf/mcp.json") ||
+    lower.endsWith("/.gemini/settings.json") ||
+    (baseName === "settings.json" && (lower.includes("mcp") || lower.includes("claude") || lower.includes("gemini")))
   ) {
     return "mcp_config";
   }
 
+  if (
+    SCRIPT_EXTS.has(ext) &&
+    (lower.includes("/skills/") ||
+      lower.includes("/.cursor/") ||
+      lower.includes("/.claude/") ||
+      lower.includes("/.agents/") ||
+      lower.includes("/.github/skills/") ||
+      lower.includes("/.windsurf/"))
+  ) {
+    return "script";
+  }
+
   return null;
+}
+
+function looksLikeMcpConfig(text: string): boolean {
+  return /"mcpServers"\s*:/.test(text) || /"servers"\s*:\s*\{/.test(text);
 }
 
 function shouldIgnoreDir(name: string): boolean {
   return IGNORE_DIRS.has(name);
 }
 
-function walk(dir: string, out: ScanTarget[], root: string): void {
+function walk(
+  dir: string,
+  out: ScanTarget[],
+  root: string,
+  gitignore: string[],
+  respectGitignore: boolean
+): void {
   let entries: fs.Dirent[];
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -103,43 +145,42 @@ function walk(dir: string, out: ScanTarget[], root: string): void {
   }
   for (const ent of entries) {
     const full = path.join(dir, ent.name);
+    if (respectGitignore && matchesGitignore(full, root, gitignore)) continue;
     if (ent.isDirectory()) {
       if (shouldIgnoreDir(ent.name)) continue;
       if (ent.name.startsWith(".") && !ALLOWED_DOTDIRS.has(ent.name)) continue;
-      walk(full, out, root);
+      walk(full, out, root, gitignore, respectGitignore);
       continue;
     }
     if (!ent.isFile()) continue;
-    const kind = classify(full, ent.name);
+    let kind = classify(full, ent.name);
+    if (!kind && ent.name.endsWith(".json")) {
+      try {
+        const text = fs.readFileSync(full, "utf8");
+        if (looksLikeMcpConfig(text)) kind = "mcp_config";
+      } catch {
+        /* ignore */
+      }
+    }
     if (!kind) continue;
     out.push({ path: full, kind });
   }
 }
 
-/** Also pick up MCP-ish JSON at known relative paths even if name varies. */
-function addKnownMcpPaths(root: string, out: ScanTarget[]): void {
-  const candidates = [
-    ".cursor/mcp.json",
-    ".vscode/mcp.json",
-    ".github/mcp.json",
-    "mcp.json",
-    "claude_desktop_config.json",
-  ];
-  const seen = new Set(out.map((t) => path.resolve(t.path)));
-  for (const rel of candidates) {
-    const full = path.join(root, rel);
-    if (!fs.existsSync(full) || !fs.statSync(full).isFile()) continue;
-    const resolved = path.resolve(full);
-    if (seen.has(resolved)) continue;
-    out.push({ path: full, kind: "mcp_config" });
-    seen.add(resolved);
-  }
-}
-
-/** Known Copilot instruction files that might sit outside walk edge cases. */
-function addKnownCopilotPaths(root: string, out: ScanTarget[]): void {
+function addKnownPaths(root: string, out: ScanTarget[]): void {
   const candidates: Array<{ rel: string; kind: TargetKind }> = [
+    { rel: ".cursor/mcp.json", kind: "mcp_config" },
+    { rel: ".vscode/mcp.json", kind: "mcp_config" },
+    { rel: ".github/mcp.json", kind: "mcp_config" },
+    { rel: ".windsurf/mcp.json", kind: "mcp_config" },
+    { rel: "mcp.json", kind: "mcp_config" },
+    { rel: "claude_desktop_config.json", kind: "mcp_config" },
+    { rel: ".gemini/settings.json", kind: "mcp_config" },
     { rel: ".github/copilot-instructions.md", kind: "copilot_instructions" },
+    { rel: "AGENTS.md", kind: "agents_md" },
+    { rel: "CLAUDE.md", kind: "agents_md" },
+    { rel: "GEMINI.md", kind: "agents_md" },
+    { rel: "CODEX.md", kind: "agents_md" },
   ];
   const seen = new Set(out.map((t) => path.resolve(t.path)));
   for (const { rel, kind } of candidates) {
@@ -149,6 +190,27 @@ function addKnownCopilotPaths(root: string, out: ScanTarget[]): void {
     if (seen.has(resolved)) continue;
     out.push({ path: full, kind });
     seen.add(resolved);
+  }
+}
+
+function addGlobalRoots(out: ScanTarget[], respectGitignore: boolean): void {
+  const home = os.homedir();
+  const globals = [
+    path.join(home, ".cursor"),
+    path.join(home, ".claude"),
+    path.join(home, ".agents"),
+    path.join(home, ".copilot"),
+    path.join(home, ".windsurf"),
+    path.join(home, ".continue"),
+    path.join(home, ".gemini"),
+    path.join(home, ".codex"),
+    path.join(home, "Library", "Application Support", "Claude"),
+    path.join(home, "Library", "Application Support", "Cursor"),
+  ];
+  for (const g of globals) {
+    if (!fs.existsSync(g)) continue;
+    const gitignore = respectGitignore ? loadGitignorePatterns(g) : [];
+    walk(g, out, g, gitignore, respectGitignore);
   }
 }
 
@@ -170,23 +232,48 @@ function matchesIgnore(filePath: string, patterns: string[]): boolean {
   return false;
 }
 
-export function discoverTargets(roots: string[], ignore: string[] = []): ScanTarget[] {
+export function discoverTargets(roots: string[], opts: DiscoverOptions | string[] = {}): ScanTarget[] {
+  // Back-compat: discoverTargets(roots, ignore[])
+  const options: DiscoverOptions = Array.isArray(opts) ? { ignore: opts } : opts;
+  const ignore = options.ignore || [];
+  const respectGitignore = options.respectGitignore !== false;
   const out: ScanTarget[] = [];
+
   for (const root of roots) {
     const abs = path.resolve(root);
     if (!fs.existsSync(abs)) continue;
     const st = fs.statSync(abs);
     if (st.isFile()) {
       if (matchesIgnore(abs, ignore)) continue;
-      const kind = classify(abs, path.basename(abs)) ?? "other";
-      out.push({ path: abs, kind });
+      let kind = classify(abs, path.basename(abs));
+      if (!kind && abs.endsWith(".json")) {
+        try {
+          if (looksLikeMcpConfig(fs.readFileSync(abs, "utf8"))) kind = "mcp_config";
+        } catch {
+          /* ignore */
+        }
+      }
+      out.push({ path: abs, kind: kind ?? "other" });
       continue;
     }
-    walk(abs, out, abs);
-    addKnownMcpPaths(abs, out);
-    addKnownCopilotPaths(abs, out);
+    const gitignore = respectGitignore ? loadGitignorePatterns(abs) : [];
+    walk(abs, out, abs, gitignore, respectGitignore);
+    addKnownPaths(abs, out);
   }
+
+  if (options.includeGlobal) {
+    addGlobalRoots(out, respectGitignore);
+  }
+
   const filtered = out.filter((t) => !matchesIgnore(t.path, ignore));
-  filtered.sort((a, b) => a.path.localeCompare(b.path));
-  return filtered;
+  const seen = new Set<string>();
+  const deduped: ScanTarget[] = [];
+  for (const t of filtered) {
+    const k = path.resolve(t.path);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    deduped.push(t);
+  }
+  deduped.sort((a, b) => a.path.localeCompare(b.path));
+  return deduped;
 }

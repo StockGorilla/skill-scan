@@ -8,6 +8,7 @@ export type TargetKind =
   | "copilot_instructions"
   | "copilot_agent"
   | "prompt"
+  | "script"
   | "other";
 
 export interface ScanTarget {
@@ -58,6 +59,39 @@ export interface ScanResult {
   durationMs: number;
   targets: ScanTarget[];
   findings: Finding[];
+  /** Findings suppressed by baseline (informational). */
+  baselineSuppressed?: number;
+}
+
+export interface ScanConfig {
+  failOn?: Severity;
+  ignore?: string[];
+  disableRules?: string[];
+  enableRules?: string[];
+  includeGlobal?: boolean;
+  respectGitignore?: boolean;
+  baselinePath?: string | null;
+  rulesDir?: string | null;
+  updateBaseline?: boolean;
+}
+
+export interface BaselineFile {
+  version: 1;
+  updatedAt: string;
+  /** fingerprint -> meta */
+  findings: Record<string, { ruleId: string; path: string; message: string }>;
+}
+
+export interface DriftEntry {
+  path: string;
+  kind: string;
+  sha256: string;
+}
+
+export interface DriftFile {
+  version: 1;
+  updatedAt: string;
+  entries: Record<string, DriftEntry>;
 }
 
 export const SEVERITY_RANK: Record<Severity, number> = {
@@ -67,3 +101,7 @@ export const SEVERITY_RANK: Record<Severity, number> = {
   low: 2,
   info: 1,
 };
+
+export function findingFingerprint(f: Pick<Finding, "ruleId" | "path" | "startLine" | "message">): string {
+  return `${f.ruleId}|${f.path}|${f.startLine}|${f.message}`;
+}
