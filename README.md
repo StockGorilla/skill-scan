@@ -70,10 +70,11 @@ Custom packs: `--rules-dir ./my-rules` (YAML/JSON regex rules).
 ## GitHub Action
 
 ```yaml
-- uses: StockGorilla/skill-scan@v0.2.0
+- uses: StockGorilla/skill-scan@v0.2.1
   with:
     path: .
     fail-on: high
+    # optional: ignore: "**/fixtures/**"
 ```
 
 Uploads SARIF to GitHub code scanning when permissions allow (`security-events: write`).

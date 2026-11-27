@@ -14,6 +14,10 @@ inputs:
     description: Fail job if findings meet this severity (critical|high|medium|low|info)
     required: false
     default: high
+  ignore:
+    description: Path globs to skip (space-separated). Passed as repeated --ignore.
+    required: false
+    default: ""
   baseline:
     description: Optional baseline JSON path (only new findings fail)
     required: false
@@ -46,11 +50,21 @@ runs:
       continue-on-error: true
       run: |
         set -euo pipefail
-        ARGS=(${{ inputs.path }} --format sarif --output toolfence-scan.sarif --fail-on "${{ inputs.fail-on }}")
+        ARGS=(--format sarif --output toolfence-scan.sarif --fail-on "${{ inputs.fail-on }}")
+        # paths (space-separated)
+        # shellcheck disable=SC2206
+        PATHS=(${{ inputs.path }})
         if [ -n "${{ inputs.baseline }}" ]; then
           ARGS+=(--baseline "${{ inputs.baseline }}")
         fi
-        npx --yes "toolfence-scan@${{ inputs.version }}" "${ARGS[@]}"
+        if [ -n "${{ inputs.ignore }}" ]; then
+          # shellcheck disable=SC2206
+          IGNORES=(${{ inputs.ignore }})
+          for p in "${IGNORES[@]}"; do
+            ARGS+=(--ignore "$p")
+          done
+        fi
+        npx --yes "toolfence-scan@${{ inputs.version }}" "${PATHS[@]}" "${ARGS[@]}"
 
     - name: Ensure SARIF exists
       shell: bash
